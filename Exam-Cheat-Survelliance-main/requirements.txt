@@ -1,0 +1,14 @@
+ultralytics>=8.3.0
+openvino>=2024.0.0
+openvino-telemetry
+mediapipe
+fastapi
+uvicorn[standard]
+websockets
+opencv-python
+numpy
+scipy
+pydantic
+python-multipart
+aiofiles
+moviepy # For forensics video clipping

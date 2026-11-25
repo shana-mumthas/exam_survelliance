@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Exam Surveillance</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background: #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        .container {
+            display: flex;
+            gap: 20px;
+        }
+
+        .video-box {
+            background: #000;
+            width: 640px;
+            height: 480px;
+            position: relative;
+        }
+
+        #localVideo {
+            display: none;
+        }
+
+        #processedImage {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .alerts-box {
+            width: 300px;
+            height: 480px;
+            background: white;
+            padding: 10px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+        }
+
+        .alert {
+            padding: 5px;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            color: white;
+        }
+
+        .alert.normal {
+            background: #4caf50;
+        }
+
+        .alert.cheat {
+            background: #f44336;
+        }
+
+        .alert.peek {
+            background: #ff9800;
+        }
+
+        .alert.down {
+            background: #9c27b0;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Exam Surveillance Dashboard</h1>
+    <div class="container">
+        <div class="video-box">
+            <!-- Raw video helper -->
+            <video id="localVideo" autoplay playsinline muted></video>
+            <img id="processedImage" src="" alt="Live Feed" />
+        </div>
+        <div class="alerts-box" id="alertsLog">
+            <h3>Alerts</h3>
+        </div>
+    </div>
+    <div style="margin-top: 10px;">
+        <button onclick="startExam()" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">Start Exam</button>
+        <button onclick="stopExam()" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">Stop</button>
+        <label style="margin-left: 20px; cursor: pointer;">
+            <input type="checkbox" id="mirrorToggle" onchange="toggleMirror()"> Mirror Mode
+        </label>
+    </div>
+
+    <div
+        style="margin-top: 20px; padding: 15px; background: white; border: 1px solid #ccc; width: 640px; display: flex; gap: 10px; align-items: center;">
+        <label>Student Name:</label>
+        <input type="text" id="studentName" placeholder="Enter Name" style="padding: 8px; flex-grow: 1;">
+        <button onclick="registerFace()"
+            style="padding: 8px 15px; cursor: pointer; background: #2196F3; color: white; border: none; border-radius: 4px;">Register
+            Current Face</button>
+    </div>
+
+    <script>
+        let ws;
+        const video = document.getElementById('localVideo');
+        const img = document.getElementById('processedImage');
+        const alertsLog = document.getElementById('alertsLog');
+        let canvas = document.createElement('canvas');
+        let ctx = canvas.getContext('2d');
+        let intervalId;
+        let isMirrored = false;
+
+        async function startExam() {
+            try {
+                // Request camera with fallback options
+                const constraints = {
+                    video: {
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        facingMode: "user"
+                    }
+                };
+                
+                let stream;
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia(constraints);
+                } catch (e) {
+                    console.warn("Failed with ideal constraints, trying basic video:", e);
+                    stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                }
+                
+                video.srcObject = stream;
+                await video.play();
+
+                // Init WS
+                const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+                // Hardcode for reliability in some environments
+                const host = "127.0.0.1:8000"; 
+                const wsUrl = `${protocol}://${host}/ws/surveillance`;
+                console.log("Connecting to:", wsUrl);
+                ws = new WebSocket(wsUrl);
+
+                ws.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+
+                        if (data.type === "registration_result") {
+                            alert(data.status.toUpperCase() + ": " + data.message);
+                        }
+
+                        if (data.type === "frame_result") {
+                            // Update image
+                            if (data.frame && data.frame.length > 0) {
+                                img.src = "data:image/jpeg;base64," + data.frame;
+                            }
+                            // Handle alerts
+                            if (data.alerts && data.alerts.length > 0) {
+                                data.alerts.forEach(alertMsg => {
+                                    let type = "cheat";
+                                    if (alertMsg.toLowerCase().includes("down")) type = "down";
+                                    else if (alertMsg.toLowerCase().includes("looking") || alertMsg.toLowerCase().includes("peeking")) type = "peek";
+                                    logAlert(alertMsg, type);
+                                });
+                            }
+                        }
+                    } catch (e) {
+                        console.error("Error processing WS message:", e);
+                    } finally {
+                        // ALWAYS schedule next frame
+                        setTimeout(sendFrame, 50);
+                    }
+                };
+
+                ws.onopen = () => {
+                    console.log("Connected to Surveillance Server");
+                    logAlert("System: Connected", "normal");
+                    canvas.width = 640;
+                    canvas.height = 480;
+
+                    // Initial frame
+                    sendFrame();
+                };
+
+                ws.onclose = () => {
+                    console.log("Disconnected");
+                    clearInterval(intervalId);
+                };
+
+            } catch (err) {
+                console.error("Error accessing camera:", err);
+                
+                // More helpful error messages
+                let errorMsg = "Could not access camera.\n\n";
+                if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+                    errorMsg += "Camera permission was denied.\nPlease allow camera access in your browser settings.";
+                } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+                    errorMsg += "No camera found.\nPlease connect a webcam and try again.";
+                } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+                    errorMsg += "Camera is in use by another application.\nPlease close other apps using the camera (Zoom, Teams, etc.) and try again.";
+                } else if (err.name === "OverconstrainedError") {
+                    errorMsg += "Camera doesn't support requested settings.\nTrying with default settings...";
+                } else if (err.name === "SecurityError") {
+                    errorMsg += "Camera access blocked.\nPlease use HTTPS or localhost.";
+                } else {
+                    errorMsg += "Error: " + err.message;
+                }
+                
+                alert(errorMsg);
+                logAlert("Camera Error: " + err.name, "cheat");
+            }
+        }
+
+        function sendFrame() {
+            if (ws && ws.readyState === WebSocket.OPEN && video.readyState === video.HAVE_ENOUGH_DATA) {
+                if (video.videoWidth === 0 || video.videoHeight === 0) {
+                    console.warn("Video stream has no dimensions yet.");
+                    return;
+                }
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                // Send as base64
+                const dataURL = canvas.toDataURL('image/jpeg', 0.8);
+                // Remove header
+                const base64Data = dataURL.split(',')[1];
+
+                ws.send(JSON.stringify({
+                    type: "frame",
+                    frame: base64Data,
+                    mirror: isMirrored
+                }));
+            }
+        }
+
+        function registerFace() {
+            const name = document.getElementById('studentName').value;
+            if (!name) {
+                alert("Please enter a student name");
+                return;
+            }
+            if (ws && ws.readyState === WebSocket.OPEN && video.readyState === video.HAVE_ENOUGH_DATA) {
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const dataURL = canvas.toDataURL('image/jpeg', 0.8);
+                const base64Data = dataURL.split(',')[1];
+
+                ws.send(JSON.stringify({
+                    type: "register",
+                    name: name,
+                    frame: base64Data,
+                    mirror: isMirrored
+                }));
+            } else {
+                alert("Capture is not active. Click 'Start Exam' first.");
+            }
+        }
+
+        function stopExam() {
+            if (ws) ws.close();
+            const stream = video.srcObject;
+            if (stream) stream.getTracks().forEach(track => track.stop());
+            video.srcObject = null;
+        }
+
+        function logAlert(msg, type) {
+            const div = document.createElement('div');
+            div.className = `alert ${type}`;
+            div.innerText = `${new Date().toLocaleTimeString()} - ${msg}`;
+            alertsLog.prepend(div);
+        }
+
+        function toggleMirror() {
+            isMirrored = document.getElementById('mirrorToggle').checked;
+        }
+    </script>
+</body>
+
+</html>

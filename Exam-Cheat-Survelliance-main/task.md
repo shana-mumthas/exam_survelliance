@@ -1,0 +1,21 @@
+# Task: Real-Time AI-Driven Exam Integrity & Forensics System
+
+- [x] Project Setup & Environment
+    - [x] Create optimized `requirements.txt` (OpenVINO, MediaPipe, FastAPI)
+    - [x] Set up new modular directory structure
+- [x] Core Architecture Implementation
+    - [x] Implement Thread A: `FrameCapture` (low-latency ingestion)
+    - [x] Implement Thread B: `AIInference` (YOLOv11n + MediaPipe Face Mesh)
+    - [x] Implement Thread C: `TemporalAlerting` (Sliding window logic)
+- [x] Behavioral Engine & Forensics
+    - [x] Implement Head Pose (Yaw/Pitch) & Iris Tracking
+    - [x] Implement Temporal Logic (debounce, counting violations)
+    - [x] Implement Forensics (Auto-save 5s clips & screenshots)
+- [x] Integration & API
+    - [x] Build FastAPI server with WebSocket support
+    - [x] Integrate OpenVINO acceleration (with PyTorch fallback)
+- [x] Verification
+    - [x] Benchmark FPS (Target 30+)
+    - [x] Test violation triggers and forensic saving
+- [x] Deployment
+    - [x] Start the application server

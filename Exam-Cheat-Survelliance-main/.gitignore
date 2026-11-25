@@ -1,0 +1,16 @@
+# Large model files
+*.pt
+*.onnx
+*.task
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Outputs
+outputs/
+forensics_data/
+
+# IDE
+.vscode/
+.idea/

@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ExamGuard AI - Surveillance</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #00d4ff;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+
+        .status.offline {
+            background: rgba(255, 50, 50, 0.2);
+            color: #ff5555;
+        }
+
+        .status.online {
+            background: rgba(50, 255, 50, 0.2);
+            color: #55ff55;
+        }
+
+        .status.connecting {
+            background: rgba(255, 200, 50, 0.2);
+            color: #ffcc55;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+        }
+
+        .video-section {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 16px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .video-container {
+            position: relative;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            aspect-ratio: 4/3;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #processedFrame {
+            display: none;
+            /* Hidden by default - using local rendering for quality */
+        }
+
+        #localVideo {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            z-index: 1;
+        }
+
+        #overlayCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 3;
+        }
+
+        .placeholder {
+            text-align: center;
+            color: #888;
+        }
+
+        .placeholder svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #00d4ff;
+            color: #000;
+        }
+
+        .btn-primary:hover {
+            background: #00b8e6;
+        }
+
+        .btn-danger {
+            background: #ff4444;
+            color: #fff;
+        }
+
+        .btn-danger:hover {
+            background: #cc3333;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .register-section {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            font-size: 14px;
+        }
+
+        input[type="text"]::placeholder {
+            color: #666;
+        }
+
+        .alerts-section {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 16px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+            max-height: 600px;
+        }
+
+        .alerts-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .alerts-header h3 {
+            font-size: 18px;
+        }
+
+        .alert-count {
+            background: rgba(255, 50, 50, 0.2);
+            color: #ff5555;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .alerts-list {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .alert-item {
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 3px solid;
+            font-size: 13px;
+        }
+
+        .alert-item.cheat {
+            background: rgba(255, 50, 50, 0.1);
+            border-color: #ff5555;
+        }
+
+        .alert-item.peek {
+            background: rgba(255, 200, 50, 0.1);
+            border-color: #ffcc55;
+        }
+
+        .alert-item.system {
+            background: rgba(50, 255, 50, 0.1);
+            border-color: #55ff55;
+        }
+
+        .alert-item .time {
+            font-size: 10px;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+
+        .stat-value.green {
+            color: #55ff55;
+        }
+
+        .stat-value.red {
+            color: #ff5555;
+        }
+
+        .stat-value.blue {
+            color: #00d4ff;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        @media (max-width: 900px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">🛡️ ExamGuard AI</div>
+            <div class="status offline" id="statusBadge">
+                <span class="status-dot"></span>
+                <span id="statusText">OFFLINE</span>
+            </div>
+        </header>
+
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-label">System Status</div>
+                <div class="stat-value green" id="systemStatus">READY</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Violations</div>
+                <div class="stat-value red" id="violationCount">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Alerts</div>
+                <div class="stat-value blue" id="alertCount">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Frame Rate</div>
+                <div class="stat-value" id="frameRate">--</div>
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <div class="video-section">
+                <div class="video-container" id="videoContainer">
+                    <video id="localVideo" autoplay playsinline muted></video>
+                    <canvas id="overlayCanvas"></canvas>
+                    <img id="processedFrame" />
+                    <div class="placeholder" id="placeholder">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path
+                                d="M15.6 11.6L14.25 13c-.63.63-1.73.63-2.5 0l-1.5-1.4c-.8-.63-2.1-.63-2.5 0l-3 3m3-9H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V7.6c0-1.1-.9-2-2-2h-3" />
+                            <circle cx="8.5" cy="8.5" r="1.5" />
+                        </svg>
+                        <p>Camera Feed Offline</p>
+                        <p style="font-size: 12px; margin-top: 10px;">Click "Start Exam" to begin surveillance</p>
+                    </div>
+                </div>
+                <div class="controls">
+                    <button class="btn-primary" id="startBtn" onclick="startExam()">▶ Start Exam</button>
+                    <button class="btn-danger" id="stopBtn" onclick="stopExam()" style="display:none;">⏹ Stop</button>
+                    <button class="btn-secondary" onclick="toggleMirror()">🔄 Mirror</button>
+                </div>
+                <div class="register-section">
+                    <input type="text" id="studentName" placeholder="Enter student name for registration..." />
+                    <button class="btn-secondary" onclick="registerFace()">📷 Register Face</button>
+                </div>
+            </div>
+
+            <div class="alerts-section">
+                <div class="alerts-header">
+                    <h3>🚨 Security Alerts</h3>
+                    <span class="alert-count" id="alertBadge">0</span>
+                </div>
+                <div class="alerts-list" id="alertsList">
+                    <div class="empty-state">
+                        <p>No alerts yet</p>
+                        <p style="font-size: 12px;">Alerts will appear here during exam</p>
+                    </div>
+                </div>
+                <button class="btn-secondary" style="margin-top: 15px;" onclick="clearAlerts()">Clear Alerts</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let video = null;
+        let canvas = null;
+        let ctx = null;
+        let overlayCanvas = null;
+        let overlayCtx = null;
+        let isStreaming = false;
+        let isMirrored = false;
+        let frameCount = 0;
+        let lastTime = Date.now();
+        let violations = 0;
+
+        function init() {
+            video = document.getElementById('localVideo');
+            canvas = document.createElement('canvas');
+            canvas.width = 640;
+            canvas.height = 480;
+            ctx = canvas.getContext('2d');
+
+            overlayCanvas = document.getElementById('overlayCanvas');
+            overlayCtx = overlayCanvas.getContext('2d');
+
+            // Set internal resolution of overlay canvas
+            overlayCanvas.width = 640;
+            overlayCanvas.height = 480;
+
+            console.log('ExamGuard initialized');
+
+            // Handle window resize to keep overlay aligned
+            window.addEventListener('resize', handleResize);
+            handleResize();
+        }
+
+        function handleResize() {
+            // Match canvas display size to video display size if needed
+        }
+
+        function setStatus(status) {
+            const badge = document.getElementById('statusBadge');
+            const text = document.getElementById('statusText');
+            badge.className = 'status ' + status;
+            text.textContent = status.toUpperCase();
+        }
+
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            const host = window.location.host;
+            const wsUrl = `${protocol}://${host}/ws/surveillance`;
+
+            console.log('Connecting to:', wsUrl);
+            setStatus('connecting');
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                setStatus('online');
+                addAlert('System connected successfully', 'system');
+                sendFrame(); // Trigger first frame
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket closed');
+                setStatus('offline');
+                isStreaming = false;
+            };
+
+            ws.onerror = (err) => {
+                console.error('WebSocket error:', err);
+                setStatus('offline');
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+
+                    if (data.type === 'frame_result') {
+                        if (data.frame) {
+                            const img = document.getElementById('processedFrame');
+                            img.src = 'data:image/jpeg;base64,' + data.frame;
+                            img.style.display = 'block';
+                            document.getElementById('placeholder').style.display = 'none';
+
+                            // Calculate FPS
+                            frameCount++;
+                            const now = Date.now();
+                            if (now - lastTime >= 1000) {
+                                document.getElementById('frameRate').textContent = frameCount + ' fps';
+                                frameCount = 0;
+                                lastTime = now;
+                            }
+                        }
+
+                        // Draw AI Data Locally for Maximum Smoothness & Quality
+                        if (data.data) {
+                            renderAIData(data.data);
+                        }
+
+                        if (data.alerts && data.alerts.length > 0) {
+                            data.alerts.forEach(msg => {
+                                let type = 'cheat';
+                                if (msg.toLowerCase().includes('system') || msg.toLowerCase().includes('success')) {
+                                    type = 'system';
+                                } else if (msg.toLowerCase().includes('peek') || msg.toLowerCase().includes('look')) {
+                                    type = 'peek';
+                                }
+                                addAlert(msg, type);
+
+                                if (type === 'cheat' || type === 'peek') {
+                                    violations++;
+                                    document.getElementById('violationCount').textContent = violations;
+                                }
+                            });
+                        }
+                    }
+
+                    if (data.type === 'registration_result') {
+                        addAlert('Registration: ' + data.message, data.status === 'success' ? 'system' : 'cheat');
+                    }
+
+                    if (data.type === 'error') {
+                        addAlert('Error: ' + data.detail, 'cheat');
+                    }
+                } catch (e) {
+                    console.error('Error parsing message:', e);
+                } finally {
+                    // Schedule next frame only after receiving previous result
+                    if (isStreaming) {
+                        // Small delay to prevent CPU saturation while maintaining high throughput
+                        setTimeout(sendFrame, 16);
+                    }
+                }
+            };
+        }
+
+        // Helper for rounded rectangles
+        function drawRoundedRect(ctx, x, y, width, height, radius, fill = false, stroke = true) {
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + width - radius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+            ctx.lineTo(x + width, y + height - radius);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+            ctx.lineTo(x + radius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+            if (fill) ctx.fill();
+            if (stroke) ctx.stroke();
+        }
+
+        function renderAIData(aiData) {
+            if (!overlayCtx) return;
+
+            // Clear previous layer
+            overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+            // Note: CSS transform handles mirroring visually on the overlayCanvas itself.
+
+            // 1. Draw Object Detections (YOLO)
+            if (aiData.detections) {
+                aiData.detections.forEach(det => {
+                    const box = det.box;
+                    const label = det.label;
+                    const conf = det.confidence;
+
+                    const isCheat = !['person', 'bottle'].includes(label.toLowerCase());
+                    const color = isCheat ? '#ff4444' : '#00d4ff';
+
+                    // Box Style: Glowing and Rounded
+                    overlayCtx.strokeStyle = color;
+                    overlayCtx.lineWidth = 3;
+                    overlayCtx.shadowBlur = isCheat ? 15 : 0;
+                    overlayCtx.shadowColor = color;
+
+                    const x = box[0], y = box[1], w = box[2] - box[0], h = box[3] - box[1];
+                    drawRoundedRect(overlayCtx, x, y, w, h, 8);
+
+                    // Reset shadow for text
+                    overlayCtx.shadowBlur = 0;
+
+                    // Label Style: Premium Tag
+                    const text = `${label.toUpperCase()} ${(conf * 100).toFixed(0)}%`;
+                    overlayCtx.font = 'bold 12px sans-serif';
+                    const textWidth = overlayCtx.measureText(text).width;
+                    const tagW = textWidth + 16;
+                    const tagH = 22;
+
+                    // Label Background
+                    overlayCtx.fillStyle = color;
+                    drawRoundedRect(overlayCtx, x, y - tagH - 5, tagW, tagH, 6, true, false);
+
+                    // Text
+                    overlayCtx.fillStyle = '#000';
+                    overlayCtx.fillText(text, x + 8, y - tagH + 11);
+                });
+            }
+
+            // 2. Draw Face Data
+            if (aiData.faces) {
+                aiData.faces.forEach(face => {
+                    const box = face.box;
+                    const status = face.status;
+                    const isNormal = status.includes('Normal');
+                    const color = isNormal ? '#55ff55' : '#ffcc55';
+
+                    const x = box[0], y = box[1], w = box[2] - box[0], h = box[3] - box[1];
+
+                    // Box Style
+                    overlayCtx.strokeStyle = color;
+                    overlayCtx.lineWidth = 2;
+                    if (!isNormal) {
+                        overlayCtx.setLineDash([5, 5]);
+                        overlayCtx.shadowBlur = 10;
+                        overlayCtx.shadowColor = color;
+                    }
+
+                    drawRoundedRect(overlayCtx, x, y, w, h, 10);
+                    overlayCtx.setLineDash([]);
+                    overlayCtx.shadowBlur = 0;
+
+                    // Status Tag
+                    overlayCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                    drawRoundedRect(overlayCtx, x, y - 25, 120, 20, 5, true, false);
+
+                    overlayCtx.fillStyle = color;
+                    overlayCtx.font = 'bold 11px sans-serif';
+                    overlayCtx.fillText(status, x + 5, y - 11);
+
+                    // Talking indicator
+                    if (face.mar !== undefined && face.mar > 0.15) {
+                        overlayCtx.fillStyle = '#ffff00';
+                        overlayCtx.font = 'bold 10px sans-serif';
+                        overlayCtx.fillText('TALKING', x, y + h + 12);
+                    }
+                });
+            }
+
+            // 3. Draw Pose Data (Collar/Pocket markers)
+            if (aiData.pose_data) {
+                aiData.pose_data.forEach(pose => {
+                    const w = overlayCanvas.width;
+                    const h = overlayCanvas.height;
+
+                    // Style for reference points
+                    overlayCtx.lineWidth = 1;
+
+                    // Draw Collar Point (Cyan)
+                    if (pose.collar) {
+                        overlayCtx.fillStyle = '#00ffff';
+                        overlayCtx.beginPath();
+                        overlayCtx.arc(pose.collar.x * w, pose.collar.y * h, 5, 0, Math.PI * 2);
+                        overlayCtx.fill();
+                        overlayCtx.font = '9px sans-serif';
+                        overlayCtx.fillText('COLLAR', pose.collar.x * w + 8, pose.collar.y * h);
+                    }
+
+                    // Draw Pocket Point (Magenta)
+                    if (pose.pocket) {
+                        overlayCtx.fillStyle = '#ff00ff';
+                        overlayCtx.beginPath();
+                        overlayCtx.arc(pose.pocket.x * w, pose.pocket.y * h, 5, 0, Math.PI * 2);
+                        overlayCtx.fill();
+                        overlayCtx.font = '9px sans-serif';
+                        overlayCtx.fillText('POCKET', pose.pocket.x * w + 8, pose.pocket.y * h);
+                    }
+
+                    // Draw Shoulders for context
+                    if (pose.shoulders) {
+                        overlayCtx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                        overlayCtx.beginPath();
+                        overlayCtx.moveTo(pose.shoulders.left.x * w, pose.shoulders.left.y * h);
+                        overlayCtx.lineTo(pose.shoulders.right.x * w, pose.shoulders.right.y * h);
+                        overlayCtx.stroke();
+                    }
+                });
+            }
+        }
+
+        async function startExam() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 640, height: 480 }
+                });
+
+                video.srcObject = stream;
+                await video.play();
+                document.getElementById('placeholder').style.display = 'none';
+
+                isStreaming = true;
+                document.getElementById('startBtn').style.display = 'none';
+                document.getElementById('stopBtn').style.display = 'inline-block';
+                document.getElementById('systemStatus').textContent = 'ACTIVE';
+
+                connectWebSocket();
+
+                addAlert('Exam surveillance started', 'system');
+            } catch (err) {
+                console.error('Camera error:', err);
+                addAlert('Camera access denied: ' + err.message, 'cheat');
+            }
+        }
+
+        function stopExam() {
+            isStreaming = false;
+
+            // Clear overlay canvas
+            if (overlayCtx) {
+                overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            }
+
+            if (video && video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+            }
+
+            if (ws) {
+                ws.close();
+            }
+
+            document.getElementById('startBtn').style.display = 'inline-block';
+            document.getElementById('stopBtn').style.display = 'none';
+            document.getElementById('statusBadge').className = 'status offline';
+            document.getElementById('statusText').textContent = 'OFFLINE';
+            document.getElementById('systemStatus').textContent = 'STOPPED';
+            document.getElementById('placeholder').style.display = 'block';
+
+            addAlert('Exam surveillance stopped', 'system');
+        }
+
+        function sendFrame() {
+            if (!isStreaming || !ws || ws.readyState !== WebSocket.OPEN) {
+                return;
+            }
+
+            ctx.drawImage(video, 0, 0, 640, 480);
+            const base64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+
+            ws.send(JSON.stringify({
+                type: 'frame',
+                frame: base64,
+                mirror: false // Always process raw frame for consistent coordinates
+            }));
+        }
+
+
+        function registerFace() {
+            const name = document.getElementById('studentName').value.trim();
+            if (!name) {
+                addAlert('Please enter a student name', 'cheat');
+                return;
+            }
+
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                addAlert('System not connected', 'cheat');
+                return;
+            }
+
+            ctx.drawImage(video, 0, 0, 640, 480);
+            const base64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+
+            ws.send(JSON.stringify({
+                type: 'register',
+                name: name,
+                frame: base64
+            }));
+
+            addAlert('Registering face for: ' + name, 'system');
+        }
+
+        function toggleMirror() {
+            isMirrored = !isMirrored;
+            const transform = isMirrored ? 'scaleX(-1)' : 'none';
+            video.style.transform = transform;
+            overlayCanvas.style.transform = transform;
+            addAlert('Mirror mode: ' + (isMirrored ? 'ON' : 'OFF'), 'system');
+        }
+
+        function addAlert(message, type) {
+            const list = document.getElementById('alertsList');
+            const empty = list.querySelector('.empty-state');
+            if (empty) empty.remove();
+
+            const item = document.createElement('div');
+            item.className = 'alert-item ' + type;
+            item.innerHTML = `
+                <div>${message}</div>
+                <div class="time">${new Date().toLocaleTimeString()}</div>
+            `;
+
+            list.insertBefore(item, list.firstChild);
+
+            // Update count
+            const count = list.querySelectorAll('.alert-item').length;
+            document.getElementById('alertCount').textContent = count;
+            document.getElementById('alertBadge').textContent = count;
+
+            // Keep only last 50 alerts
+            while (list.children.length > 50) {
+                list.removeChild(list.lastChild);
+            }
+        }
+
+        function clearAlerts() {
+            const list = document.getElementById('alertsList');
+            list.innerHTML = `
+                <div class="empty-state">
+                    <p>No alerts</p>
+                    <p style="font-size: 12px;">Alerts will appear here during exam</p>
+                </div>
+            `;
+            document.getElementById('alertCount').textContent = '0';
+            document.getElementById('alertBadge').textContent = '0';
+        }
+
+        // Initialize on load
+        window.onload = init;
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,7 @@
+
+path: c:\Users\afzal\Exam_survaillence\earbud_dataset
+train: images/train
+val: images/train  # Using train as val for this synthetic demo
+
+names:
+  0: earbud
